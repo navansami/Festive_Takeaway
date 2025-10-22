@@ -391,7 +391,7 @@ export const updateOrderItem = async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    const item = order.items.id(itemId);
+    const item = order.items.find((item: any) => item._id?.toString() === itemId);
 
     if (!item) {
       res.status(404).json({ message: 'Item not found in order' });
