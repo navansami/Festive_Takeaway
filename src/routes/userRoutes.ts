@@ -1,5 +1,6 @@
 import express from 'express';
 import {
+  createUser,
   getAllUsers,
   getUserById,
   updateUser,
@@ -19,6 +20,7 @@ router.patch('/change-password', changePassword);
 
 // Admin only routes
 router.get('/', authorize(UserRole.ADMIN), getAllUsers);
+router.post('/', authorize(UserRole.ADMIN), createUser);
 router.get('/:id', authorize(UserRole.ADMIN), getUserById);
 router.patch('/:id', authorize(UserRole.ADMIN), updateUser);
 router.delete('/:id', authorize(UserRole.ADMIN), deleteUser);

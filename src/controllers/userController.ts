@@ -3,6 +3,42 @@ import User from '../models/User';
 import { AuthRequest } from '../middleware/auth';
 import { UserRole } from '../types';
 
+export const createUser = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { name, email, password, role, isActive } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      res.status(400).json({ message: 'User with this email already exists' });
+      return;
+    }
+
+    // Create new user
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: role || UserRole.ORDER_TAKER,
+      isActive: isActive !== undefined ? isActive : true
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Error creating user' });
+  }
+};
+
 export const getAllUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
@@ -34,7 +70,7 @@ export const getUserById = async (req: AuthRequest, res: Response): Promise<void
 
 export const updateUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, role, isActive } = req.body;
+    const { name, email, password, role, isActive } = req.body;
 
     const user = await User.findById(req.params.id);
 
@@ -45,6 +81,8 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
 
     // Update fields
     if (name) user.name = name;
+    if (email) user.email = email;
+    if (password) user.password = password; // Will be hashed by pre-save hook
     if (role && Object.values(UserRole).includes(role)) user.role = role;
     if (typeof isActive === 'boolean') user.isActive = isActive;
 
