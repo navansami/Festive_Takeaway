@@ -88,6 +88,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Check if user needs to change password (using default password)
+    const mustChangePassword = await user.comparePassword('Changeme');
+
     // Generate token
     const token = generateToken({
       userId: user._id.toString(),
@@ -98,6 +101,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     res.json({
       message: 'Login successful',
       token,
+      mustChangePassword,
       user: {
         id: user._id,
         name: user.name,
