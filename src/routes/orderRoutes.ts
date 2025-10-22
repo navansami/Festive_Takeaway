@@ -8,7 +8,8 @@ import {
   addPayment,
   updateOrderItem,
   deleteOrder,
-  getOrderChangeLogs
+  getOrderChangeLogs,
+  searchGuests
 } from '../controllers/orderController';
 import { authenticate, authorize } from '../middleware/auth';
 import { UserRole } from '../types';
@@ -20,6 +21,7 @@ router.use(authenticate);
 
 // Routes accessible by all authenticated users
 router.get('/', getAllOrders);
+router.get('/search/guests', searchGuests);
 router.get('/:id', getOrderById);
 router.get('/:id/change-logs', getOrderChangeLogs);
 

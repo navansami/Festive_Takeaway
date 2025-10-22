@@ -497,3 +497,56 @@ export const getOrderChangeLogs = async (req: AuthRequest, res: Response): Promi
     res.status(500).json({ message: error.message || 'Error fetching change logs' });
   }
 };
+
+export const searchGuests = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { query } = req.query;
+
+    if (!query || typeof query !== 'string' || query.trim().length < 2) {
+      res.json({
+        success: true,
+        guests: []
+      });
+      return;
+    }
+
+    const searchTerm = query.trim();
+
+    // Search in orders for matching guest details (name, email, or phone)
+    const orders = await Order.find({
+      isDeleted: false,
+      $or: [
+        { 'guestDetails.name': { $regex: searchTerm, $options: 'i' } },
+        { 'guestDetails.email': { $regex: searchTerm, $options: 'i' } },
+        { 'guestDetails.phone': { $regex: searchTerm, $options: 'i' } }
+      ]
+    })
+      .select('guestDetails')
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    // Get unique guests (deduplicate by phone number)
+    const guestsMap = new Map();
+    orders.forEach(order => {
+      const phone = order.guestDetails.phone;
+      if (!guestsMap.has(phone)) {
+        guestsMap.set(phone, {
+          name: order.guestDetails.name,
+          email: order.guestDetails.email,
+          phone: order.guestDetails.phone,
+          address: order.guestDetails.address
+        });
+      }
+    });
+
+    const guests = Array.from(guestsMap.values());
+
+    res.json({
+      success: true,
+      count: guests.length,
+      guests
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Error searching guests' });
+  }
+};
