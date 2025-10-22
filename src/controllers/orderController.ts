@@ -22,7 +22,7 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
       phone: guestDetails.phone
     };
 
-    const order = await Order.create({
+    const order = new Order({
       guestDetails,
       collectionPerson,
       items,
@@ -41,6 +41,8 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
         }
       ]
     });
+
+    await order.save();
 
     // Log the creation
     await ChangeLog.create({

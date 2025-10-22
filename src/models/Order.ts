@@ -180,8 +180,8 @@ const orderSchema = new Schema<IOrder>(
   {
     orderNumber: {
       type: String,
-      required: true,
-      unique: true
+      unique: true,
+      sparse: true
     },
     guestDetails: {
       type: guestDetailsSchema,
