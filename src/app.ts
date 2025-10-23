@@ -31,7 +31,19 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
+// Health check and root routes
+app.get('/', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Festive Takeaway API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      api: '/api'
+    }
+  });
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Festive Takeaway API is running' });
 });
