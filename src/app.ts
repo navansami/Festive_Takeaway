@@ -17,8 +17,11 @@ const app: Application = express();
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  process.env.FRONTEND_URL || 'https://festive-takeaway-client.vercel.app'
+  'https://festive-takeaway-client.vercel.app',
+  process.env.FRONTEND_URL
 ].filter(Boolean);
+
+console.log('Allowed CORS origins:', allowedOrigins);
 
 const corsOptions = {
   origin: allowedOrigins,
