@@ -6,6 +6,19 @@ export interface IPricing {
   price: number;
 }
 
+export interface IPackageConstraints {
+  servingSize: string; // Which pricing option this applies to
+  allowedSides?: {
+    maxCount: number;
+    servingSize: string; // e.g., "For 4 people"
+    categories: string[]; // e.g., ["potatoes", "vegetables"]
+  };
+  allowedSauces?: {
+    maxCount: number;
+    servingSize: string; // e.g., "Small"
+  };
+}
+
 export interface IMenuItem extends Document {
   name: string;
   description?: string;
@@ -13,6 +26,7 @@ export interface IMenuItem extends Document {
   pricing: IPricing[];
   allergens?: string[];
   isAvailable: boolean;
+  packageConstraints?: IPackageConstraints[]; // For combo packages like "Turkey with Sides"
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +41,25 @@ const pricingSchema = new Schema<IPricing>(
       type: Number,
       required: true,
       min: 0
+    }
+  },
+  { _id: false }
+);
+
+const packageConstraintsSchema = new Schema<IPackageConstraints>(
+  {
+    servingSize: {
+      type: String,
+      required: true
+    },
+    allowedSides: {
+      maxCount: { type: Number },
+      servingSize: { type: String },
+      categories: { type: [String] }
+    },
+    allowedSauces: {
+      maxCount: { type: Number },
+      servingSize: { type: String }
     }
   },
   { _id: false }
@@ -65,6 +98,10 @@ const menuItemSchema = new Schema<IMenuItem>(
     isAvailable: {
       type: Boolean,
       default: true
+    },
+    packageConstraints: {
+      type: [packageConstraintsSchema],
+      default: []
     }
   },
   {

@@ -16,14 +16,40 @@ export const menuItemsData = [
   },
   {
     name: 'Whole Roasted Turkey with Sides',
-    description: 'Choice of 2 side dishes and 1 sauce',
+    description: 'Includes 2 side dishes (For 4 people) and 1 small sauce. Served with traditional sage, apple stuffing and cranberry sauce',
     category: MenuCategory.ROASTS,
     pricing: [
       { servingSize: '6kgs For 8 people', price: 650 },
       { servingSize: '8kgs For 10 people', price: 850 }
     ],
     allergens: ['D', 'G'],
-    isAvailable: true
+    isAvailable: true,
+    packageConstraints: [
+      {
+        servingSize: '6kgs For 8 people',
+        allowedSides: {
+          maxCount: 2,
+          servingSize: 'For 4 people',
+          categories: ['potatoes', 'vegetables']
+        },
+        allowedSauces: {
+          maxCount: 1,
+          servingSize: 'Small'
+        }
+      },
+      {
+        servingSize: '8kgs For 10 people',
+        allowedSides: {
+          maxCount: 2,
+          servingSize: 'For 8 people',
+          categories: ['potatoes', 'vegetables']
+        },
+        allowedSauces: {
+          maxCount: 1,
+          servingSize: 'Large'
+        }
+      }
+    ]
   },
   {
     name: 'Honey Smoked Ham',
