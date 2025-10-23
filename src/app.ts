@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import orderRoutes from './routes/orderRoutes';
+import guestRoutes from './routes/guestRoutes';
 import enquiryRoutes from './routes/enquiryRoutes';
 import menuItemRoutes from './routes/menuItemRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
@@ -37,6 +38,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/guests', guestRoutes);
 app.use('/api/enquiries', enquiryRoutes);
 app.use('/api/menu-items', menuItemRoutes);
 app.use('/api/analytics', analyticsRoutes);

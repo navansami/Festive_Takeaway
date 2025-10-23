@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import Order, { IOrderItem, IPaymentRecord } from '../models/Order';
+import Guest from '../models/Guest';
 import ChangeLog from '../models/ChangeLog';
 import { AuthRequest } from '../middleware/auth';
 import { OrderStatus, PaymentStatus, ItemStatus, PaymentMethod } from '../types';
@@ -7,7 +8,7 @@ import { ChangeType, EntityType } from '../models/ChangeLog';
 
 export const createOrder = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { guestDetails, items, collectionDate, collectionTime, paymentMethod } = req.body;
+    const { guestId, guestDetails, items, collectionDate, collectionTime, paymentMethod } = req.body;
 
     // Calculate total amount
     const totalAmount = items.reduce((sum: number, item: IOrderItem) => {
@@ -15,15 +16,72 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
       return sum + item.totalPrice;
     }, 0);
 
+    let finalGuestDetails = guestDetails;
+    let guestRef = guestId;
+
+    // If guestId is provided, fetch guest details from Guest profile
+    if (guestId) {
+      const guest = await Guest.findById(guestId);
+      if (!guest || guest.isDeleted) {
+        res.status(404).json({ message: 'Guest profile not found' });
+        return;
+      }
+      finalGuestDetails = {
+        name: guest.name,
+        email: guest.email,
+        phone: guest.phone,
+        address: guest.address
+      };
+    } else if (guestDetails && guestDetails.email) {
+      // No guestId provided, but we have guest details - check if guest exists or create new
+      let guest = await Guest.findOne({
+        email: guestDetails.email.toLowerCase(),
+        isDeleted: false
+      });
+
+      if (!guest) {
+        // Create new guest profile
+        guest = new Guest({
+          name: guestDetails.name,
+          email: guestDetails.email,
+          phone: guestDetails.phone,
+          address: guestDetails.address,
+          createdBy: req.user?.userId,
+          lastModifiedBy: req.user?.userId
+        });
+        await guest.save();
+
+        // Log guest creation
+        await ChangeLog.create({
+          entityType: EntityType.ORDER,
+          entityId: guest._id,
+          changeType: ChangeType.CREATE,
+          changedBy: req.user?.userId,
+          changes: [],
+          description: 'Guest profile auto-created from order'
+        });
+      }
+
+      // Use the guest profile (existing or newly created)
+      guestRef = guest._id;
+      finalGuestDetails = {
+        name: guest.name,
+        email: guest.email,
+        phone: guest.phone,
+        address: guest.address
+      };
+    }
+
     // Set collection person to guest by default
     const collectionPerson = {
-      name: guestDetails.name,
-      email: guestDetails.email,
-      phone: guestDetails.phone
+      name: finalGuestDetails.name,
+      email: finalGuestDetails.email,
+      phone: finalGuestDetails.phone
     };
 
     const order = new Order({
-      guestDetails,
+      guest: guestRef,
+      guestDetails: finalGuestDetails,
       collectionPerson,
       items,
       totalAmount,
@@ -55,6 +113,7 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
     });
 
     await order.populate('items.menuItem');
+    await order.populate('guest');
 
     res.status(201).json({
       success: true,
@@ -89,6 +148,7 @@ export const getAllOrders = async (req: AuthRequest, res: Response): Promise<voi
     }
 
     const orders = await Order.find(query)
+      .populate('guest', 'name email phone address')
       .populate('items.menuItem')
       .populate('createdBy', 'name email')
       .populate('lastModifiedBy', 'name email')
@@ -107,6 +167,7 @@ export const getAllOrders = async (req: AuthRequest, res: Response): Promise<voi
 export const getOrderById = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const order = await Order.findById(req.params.id)
+      .populate('guest', 'name email phone address totalOrders totalSpent')
       .populate('items.menuItem')
       .populate('createdBy', 'name email')
       .populate('lastModifiedBy', 'name email')
@@ -145,6 +206,7 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
 
     const changes: any[] = [];
     const {
+      guestId,
       guestDetails,
       collectionPerson,
       items,
@@ -153,14 +215,70 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
       paymentMethod
     } = req.body;
 
-    // Track changes
-    if (guestDetails) {
-      changes.push({
-        field: 'guestDetails',
-        oldValue: order.guestDetails,
-        newValue: guestDetails
+    // Handle guest profile update
+    if (guestId !== undefined) {
+      if (guestId && guestId !== order.guest?.toString()) {
+        const guest = await Guest.findById(guestId);
+        if (!guest || guest.isDeleted) {
+          res.status(404).json({ message: 'Guest profile not found' });
+          return;
+        }
+        changes.push({
+          field: 'guest',
+          oldValue: order.guest,
+          newValue: guestId
+        });
+        order.guest = guestId;
+        order.guestDetails = {
+          name: guest.name,
+          email: guest.email,
+          phone: guest.phone,
+          address: guest.address
+        };
+      }
+    } else if (guestDetails && guestDetails.email) {
+      // No guestId provided, but we have guest details - check if guest exists or create new
+      let guest = await Guest.findOne({
+        email: guestDetails.email.toLowerCase(),
+        isDeleted: false
       });
-      order.guestDetails = guestDetails;
+
+      if (!guest) {
+        // Create new guest profile
+        guest = new Guest({
+          name: guestDetails.name,
+          email: guestDetails.email,
+          phone: guestDetails.phone,
+          address: guestDetails.address,
+          createdBy: req.user?.userId,
+          lastModifiedBy: req.user?.userId
+        });
+        await guest.save();
+
+        // Log guest creation
+        await ChangeLog.create({
+          entityType: EntityType.ORDER,
+          entityId: guest._id,
+          changeType: ChangeType.CREATE,
+          changedBy: req.user?.userId,
+          changes: [],
+          description: 'Guest profile auto-created from order update'
+        });
+      }
+
+      // Use the guest profile (existing or newly created)
+      changes.push({
+        field: 'guest',
+        oldValue: order.guest,
+        newValue: guest._id
+      });
+      order.guest = guest._id;
+      order.guestDetails = {
+        name: guest.name,
+        email: guest.email,
+        phone: guest.phone,
+        address: guest.address
+      };
     }
 
     if (collectionPerson) {
@@ -232,6 +350,7 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
     }
 
     await order.populate('items.menuItem');
+    await order.populate('guest');
 
     res.json({
       success: true,
@@ -514,9 +633,23 @@ export const searchGuests = async (req: AuthRequest, res: Response): Promise<voi
 
     const searchTerm = query.trim();
 
-    // Search in orders for matching guest details (name, email, or phone)
+    // Search in Guest profiles first (new system)
+    const guestProfiles = await Guest.find({
+      isDeleted: false,
+      $or: [
+        { name: { $regex: searchTerm, $options: 'i' } },
+        { email: { $regex: searchTerm, $options: 'i' } },
+        { phone: { $regex: searchTerm, $options: 'i' } }
+      ]
+    })
+      .select('_id name email phone address totalOrders totalSpent')
+      .sort({ name: 1 })
+      .limit(10);
+
+    // Also search in orders for matching guest details (backward compatibility for old orders without profiles)
     const orders = await Order.find({
       isDeleted: false,
+      guest: { $exists: false }, // Only orders without guest profile reference
       $or: [
         { 'guestDetails.name': { $regex: searchTerm, $options: 'i' } },
         { 'guestDetails.email': { $regex: searchTerm, $options: 'i' } },
@@ -525,9 +658,9 @@ export const searchGuests = async (req: AuthRequest, res: Response): Promise<voi
     })
       .select('guestDetails')
       .sort({ createdAt: -1 })
-      .limit(50);
+      .limit(10);
 
-    // Get unique guests (deduplicate by phone number)
+    // Get unique guests from orders (deduplicate by phone number)
     const guestsMap = new Map();
     orders.forEach(order => {
       const phone = order.guestDetails.phone;
@@ -541,7 +674,25 @@ export const searchGuests = async (req: AuthRequest, res: Response): Promise<voi
       }
     });
 
-    const guests = Array.from(guestsMap.values());
+    const legacyGuests = Array.from(guestsMap.values());
+
+    // Combine results - profiles first, then legacy
+    const guests = [
+      ...guestProfiles.map(g => ({
+        _id: g._id,
+        name: g.name,
+        email: g.email,
+        phone: g.phone,
+        address: g.address,
+        totalOrders: g.totalOrders,
+        totalSpent: g.totalSpent,
+        hasProfile: true
+      })),
+      ...legacyGuests.map(g => ({
+        ...g,
+        hasProfile: false
+      }))
+    ];
 
     res.json({
       success: true,

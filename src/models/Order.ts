@@ -35,7 +35,8 @@ export interface IGuestDetails {
 
 export interface IOrder extends Document {
   orderNumber: string;
-  guestDetails: IGuestDetails;
+  guest?: mongoose.Types.ObjectId; // Reference to Guest profile
+  guestDetails: IGuestDetails; // Kept for backward compatibility
   collectionPerson: {
     name: string;
     email?: string;
@@ -183,6 +184,11 @@ const orderSchema = new Schema<IOrder>(
       unique: true,
       sparse: true
     },
+    guest: {
+      type: Schema.Types.ObjectId,
+      ref: 'Guest',
+      index: true
+    },
     guestDetails: {
       type: guestDetailsSchema,
       required: true
@@ -289,6 +295,32 @@ orderSchema.pre('save', async function (next) {
     this.orderNumber = orderNumber;
   }
   next();
+});
+
+// Update guest statistics after order is saved
+orderSchema.post('save', async function (doc) {
+  if (doc.guest && !doc.isDeleted) {
+    try {
+      const Guest = mongoose.model('Guest');
+      const Order = mongoose.model<IOrder>('Order');
+
+      // Calculate guest statistics
+      const orders = await Order.find({ guest: doc.guest, isDeleted: false });
+      const totalOrders = orders.length;
+      const totalSpent = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+      const lastOrderDate = orders.length > 0
+        ? orders.sort((a, b) => b.collectionDate.getTime() - a.collectionDate.getTime())[0].collectionDate
+        : undefined;
+
+      await Guest.findByIdAndUpdate(doc.guest, {
+        totalOrders,
+        totalSpent,
+        lastOrderDate
+      });
+    } catch (error) {
+      console.error('Error updating guest statistics:', error);
+    }
+  }
 });
 
 export default mongoose.model<IOrder>('Order', orderSchema);

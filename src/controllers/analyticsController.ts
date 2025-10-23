@@ -1,8 +1,135 @@
 import { Response } from 'express';
 import Order from '../models/Order';
+import Guest from '../models/Guest';
 import { AuthRequest } from '../middleware/auth';
 import { OrderStatus } from '../types';
 import ExcelJS from 'exceljs';
+
+export const getDashboardStats = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // Get date 30 days ago
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+    // Get all orders (excluding deleted)
+    const allOrders = await Order.find({ isDeleted: false }).populate('items.menuItem');
+
+    // Get today's orders
+    const todayOrders = await Order.find({
+      createdAt: { $gte: todayStart, $lte: todayEnd },
+      isDeleted: false
+    });
+
+    // Get last 30 days orders
+    const last30DaysOrders = await Order.find({
+      createdAt: { $gte: thirtyDaysAgo },
+      isDeleted: false
+    }).sort({ createdAt: 1 });
+
+    // Get upcoming collections (next 7 days)
+    const sevenDaysFromNow = new Date(now);
+    sevenDaysFromNow.setDate(now.getDate() + 7);
+    const upcomingCollections = await Order.find({
+      collectionDate: { $gte: todayStart, $lte: sevenDaysFromNow },
+      status: { $in: [OrderStatus.CONFIRMED, OrderStatus.PENDING] },
+      isDeleted: false
+    }).sort({ collectionDate: 1, collectionTime: 1 }).limit(10);
+
+    // Calculate total statistics
+    const totalRevenue = allOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const totalPaid = allOrders.reduce((sum, o) => sum + o.totalPaid, 0);
+    const totalOrders = allOrders.length;
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    // Today's statistics
+    const todayRevenue = todayOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const todayOrdersCount = todayOrders.length;
+
+    // Status counts
+    const statusCounts: any = {};
+    Object.values(OrderStatus).forEach(status => {
+      statusCounts[status] = allOrders.filter(o => o.status === status).length;
+    });
+
+    // Revenue trend (last 30 days, grouped by day)
+    const revenueTrend: any[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(now.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      const dayOrders = last30DaysOrders.filter(o => {
+        const orderDate = new Date(o.createdAt).toISOString().split('T')[0];
+        return orderDate === dateStr;
+      });
+
+      revenueTrend.push({
+        date: dateStr,
+        revenue: dayOrders.reduce((sum, o) => sum + o.totalAmount, 0),
+        orders: dayOrders.length
+      });
+    }
+
+    // Top selling items
+    const itemSummary: any = {};
+    allOrders.forEach(order => {
+      order.items.forEach(item => {
+        const key = `${item.name} - ${item.servingSize}`;
+        if (!itemSummary[key]) {
+          itemSummary[key] = {
+            name: item.name,
+            servingSize: item.servingSize,
+            quantity: 0,
+            totalRevenue: 0
+          };
+        }
+        itemSummary[key].quantity += item.quantity;
+        itemSummary[key].totalRevenue += item.totalPrice;
+      });
+    });
+
+    const topItems = Object.values(itemSummary)
+      .sort((a: any, b: any) => b.quantity - a.quantity)
+      .slice(0, 10);
+
+    // Get total guests count
+    const totalGuests = await Guest.countDocuments({ isDeleted: false });
+
+    res.json({
+      success: true,
+      stats: {
+        totalRevenue,
+        totalPaid,
+        totalOrders,
+        averageOrderValue,
+        todayRevenue,
+        todayOrdersCount,
+        totalGuests,
+        statusCounts,
+        revenueTrend,
+        topItems,
+        upcomingCollections: upcomingCollections.map(o => ({
+          _id: o._id,
+          orderNumber: o.orderNumber,
+          guestName: o.guestDetails.name,
+          collectionDate: o.collectionDate,
+          collectionTime: o.collectionTime,
+          totalAmount: o.totalAmount,
+          status: o.status
+        }))
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Error fetching dashboard stats' });
+  }
+};
 
 export const getDailyAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
