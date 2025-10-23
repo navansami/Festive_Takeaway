@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import Order, { IOrderItem, IPaymentRecord } from '../models/Order';
 import Guest from '../models/Guest';
 import ChangeLog from '../models/ChangeLog';
@@ -46,8 +47,8 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
           email: guestDetails.email,
           phone: guestDetails.phone,
           address: guestDetails.address,
-          createdBy: req.user?.userId,
-          lastModifiedBy: req.user?.userId
+          createdBy: new mongoose.Types.ObjectId(req.user?.userId),
+          lastModifiedBy: new mongoose.Types.ObjectId(req.user?.userId)
         });
         await guest.save();
 
@@ -56,7 +57,7 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
           entityType: EntityType.ORDER,
           entityId: guest._id,
           changeType: ChangeType.CREATE,
-          changedBy: req.user?.userId,
+          changedBy: new mongoose.Types.ObjectId(req.user?.userId),
           changes: [],
           description: 'Guest profile auto-created from order'
         });
@@ -88,12 +89,12 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
       collectionDate,
       collectionTime,
       paymentMethod,
-      createdBy: req.user?.userId,
-      lastModifiedBy: req.user?.userId,
+      createdBy: new mongoose.Types.ObjectId(req.user?.userId),
+      lastModifiedBy: new mongoose.Types.ObjectId(req.user?.userId),
       statusHistory: [
         {
           status: OrderStatus.PENDING,
-          changedBy: req.user?.userId,
+          changedBy: new mongoose.Types.ObjectId(req.user?.userId),
           changedAt: new Date(),
           notes: 'Order created'
         }
@@ -107,7 +108,7 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
       entityType: EntityType.ORDER,
       entityId: order._id,
       changeType: ChangeType.CREATE,
-      changedBy: req.user?.userId,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
       changes: [],
       description: 'Order created'
     });
@@ -250,8 +251,8 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
           email: guestDetails.email,
           phone: guestDetails.phone,
           address: guestDetails.address,
-          createdBy: req.user?.userId,
-          lastModifiedBy: req.user?.userId
+          createdBy: new mongoose.Types.ObjectId(req.user?.userId),
+          lastModifiedBy: new mongoose.Types.ObjectId(req.user?.userId)
         });
         await guest.save();
 
@@ -260,7 +261,7 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
           entityType: EntityType.ORDER,
           entityId: guest._id,
           changeType: ChangeType.CREATE,
-          changedBy: req.user?.userId,
+          changedBy: new mongoose.Types.ObjectId(req.user?.userId),
           changes: [],
           description: 'Guest profile auto-created from order update'
         });
@@ -272,7 +273,7 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
         oldValue: order.guest,
         newValue: guest._id
       });
-      order.guest = guest._id;
+      order.guest = guest._id as mongoose.Types.ObjectId;
       order.guestDetails = {
         name: guest.name,
         email: guest.email,
@@ -343,7 +344,7 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
         entityType: EntityType.ORDER,
         entityId: order._id,
         changeType: ChangeType.UPDATE,
-        changedBy: req.user?.userId,
+        changedBy: new mongoose.Types.ObjectId(req.user?.userId),
         changes,
         description: 'Order updated'
       });
@@ -390,7 +391,7 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response): Promis
     // Add to status history
     order.statusHistory.push({
       status,
-      changedBy: req.user?.userId as any,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
       changedAt: new Date(),
       notes
     });
@@ -402,7 +403,7 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response): Promis
       entityType: EntityType.ORDER,
       entityId: order._id,
       changeType: ChangeType.STATUS_CHANGE,
-      changedBy: req.user?.userId,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
       changes: [
         {
           field: 'status',
@@ -474,7 +475,7 @@ export const addPayment = async (req: AuthRequest, res: Response): Promise<void>
       entityType: EntityType.ORDER,
       entityId: order._id,
       changeType: ChangeType.PAYMENT_ADD,
-      changedBy: req.user?.userId,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
       changes: [
         {
           field: 'payment',
@@ -537,7 +538,7 @@ export const updateOrderItem = async (req: AuthRequest, res: Response): Promise<
       entityType: EntityType.ORDER,
       entityId: order._id,
       changeType: ChangeType.ITEM_UPDATE,
-      changedBy: req.user?.userId,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
       changes: [
         {
           field: `item.${item.name}.status`,
@@ -574,7 +575,7 @@ export const deleteOrder = async (req: AuthRequest, res: Response): Promise<void
 
     order.statusHistory.push({
       status: OrderStatus.DELETED,
-      changedBy: req.user?.userId as any,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
       changedAt: new Date(),
       notes: 'Order deleted by admin'
     });
@@ -586,7 +587,7 @@ export const deleteOrder = async (req: AuthRequest, res: Response): Promise<void
       entityType: EntityType.ORDER,
       entityId: order._id,
       changeType: ChangeType.DELETE,
-      changedBy: req.user?.userId,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
       changes: [],
       description: 'Order soft deleted'
     });

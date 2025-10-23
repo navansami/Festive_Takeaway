@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import Guest from '../models/Guest';
 import Order from '../models/Order';
 import ChangeLog from '../models/ChangeLog';
@@ -149,8 +150,8 @@ export const createGuest = async (req: AuthRequest, res: Response): Promise<void
       notes,
       dietaryRequirements,
       preferredContactMethod,
-      createdBy: req.user?.userId,
-      lastModifiedBy: req.user?.userId
+      createdBy: new mongoose.Types.ObjectId(req.user?.userId),
+      lastModifiedBy: new mongoose.Types.ObjectId(req.user?.userId)
     });
 
     await guest.save();
@@ -160,7 +161,7 @@ export const createGuest = async (req: AuthRequest, res: Response): Promise<void
       entityType: EntityType.ORDER, // We'll use ORDER for now, you can extend EntityType if needed
       entityId: guest._id,
       changeType: ChangeType.CREATE,
-      changedBy: req.user?.userId,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
       changes: [],
       description: 'Guest profile created'
     });
@@ -239,7 +240,7 @@ export const updateGuest = async (req: AuthRequest, res: Response): Promise<void
       guest.preferredContactMethod = preferredContactMethod;
     }
 
-    guest.lastModifiedBy = req.user?.userId;
+    guest.lastModifiedBy = new mongoose.Types.ObjectId(req.user?.userId);
     await guest.save();
 
     // Log the changes
@@ -248,7 +249,7 @@ export const updateGuest = async (req: AuthRequest, res: Response): Promise<void
         entityType: EntityType.ORDER,
         entityId: guest._id,
         changeType: ChangeType.UPDATE,
-        changedBy: req.user?.userId,
+        changedBy: new mongoose.Types.ObjectId(req.user?.userId),
         changes,
         description: 'Guest profile updated'
       });
@@ -292,7 +293,7 @@ export const deleteGuest = async (req: AuthRequest, res: Response): Promise<void
 
     // Soft delete
     guest.isDeleted = true;
-    guest.lastModifiedBy = req.user?.userId;
+    guest.lastModifiedBy = new mongoose.Types.ObjectId(req.user?.userId);
     await guest.save();
 
     // Log the deletion
@@ -300,7 +301,7 @@ export const deleteGuest = async (req: AuthRequest, res: Response): Promise<void
       entityType: EntityType.ORDER,
       entityId: guest._id,
       changeType: ChangeType.DELETE,
-      changedBy: req.user?.userId,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
       changes: [],
       description: 'Guest profile deleted'
     });

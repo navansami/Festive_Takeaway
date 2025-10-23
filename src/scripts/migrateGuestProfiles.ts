@@ -45,11 +45,11 @@ async function migrateGuestProfiles() {
             phone: order.guestDetails.phone,
             address: order.guestDetails.address
           },
-          orderIds: [order._id]
+          orderIds: [order._id as mongoose.Types.ObjectId]
         });
       } else {
         const existing = guestMap.get(email)!;
-        existing.orderIds.push(order._id);
+        existing.orderIds.push(order._id as mongoose.Types.ObjectId);
       }
     });
 
