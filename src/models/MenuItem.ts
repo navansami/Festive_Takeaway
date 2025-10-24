@@ -6,6 +6,17 @@ export interface IPricing {
   price: number;
 }
 
+export interface IBundleConfig {
+  servingSize: string; // Which pricing option this applies to (e.g., "6kgs For 8 people")
+  maxPortions: number; // Max portions for sides (e.g., 2 or 4)
+  maxSauces: number; // Max sauces included
+  allowMixing: boolean; // Whether different serving sizes can be mixed
+  portionValues?: { // Define portion values for different serving sizes
+    servingSize: string; // e.g., "For 4 people"
+    portionValue: number; // e.g., 1 portion
+  }[];
+}
+
 export interface IPackageConstraints {
   servingSize: string; // Which pricing option this applies to
   allowedSides?: {
@@ -26,6 +37,7 @@ export interface IMenuItem extends Document {
   pricing: IPricing[];
   allergens?: string[];
   isAvailable: boolean;
+  bundleConfig?: IBundleConfig[]; // Bundle configuration for items with sides
   packageConstraints?: IPackageConstraints[]; // For combo packages like "Turkey with Sides"
   createdAt: Date;
   updatedAt: Date;
@@ -42,6 +54,35 @@ const pricingSchema = new Schema<IPricing>(
       required: true,
       min: 0
     }
+  },
+  { _id: false }
+);
+
+const bundleConfigSchema = new Schema<IBundleConfig>(
+  {
+    servingSize: {
+      type: String,
+      required: true
+    },
+    maxPortions: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    maxSauces: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    allowMixing: {
+      type: Boolean,
+      required: true,
+      default: false
+    },
+    portionValues: [{
+      servingSize: { type: String, required: true },
+      portionValue: { type: Number, required: true, min: 0 }
+    }]
   },
   { _id: false }
 );
@@ -98,6 +139,10 @@ const menuItemSchema = new Schema<IMenuItem>(
     isAvailable: {
       type: Boolean,
       default: true
+    },
+    bundleConfig: {
+      type: [bundleConfigSchema],
+      default: []
     },
     packageConstraints: {
       type: [packageConstraintsSchema],
