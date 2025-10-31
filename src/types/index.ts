@@ -24,8 +24,10 @@ export enum PaymentStatus {
 }
 
 export enum PaymentMethod {
-  CASH = 'cash',
   CARD = 'card',
+  CASH = 'cash',
+  SERVME = 'servme',
+  SECUREPAY = 'securepay',
   BANK_TRANSFER = 'bank_transfer',
   OTHER = 'other'
 }
