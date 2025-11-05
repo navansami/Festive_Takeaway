@@ -12,8 +12,13 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
     const { guestId, guestDetails, items, collectionDate, collectionTime, paymentMethod } = req.body;
 
     // Calculate total amount
+    // Respect bundle pricing: if item is included in bundle, use totalPrice from frontend (0)
+    // Otherwise calculate totalPrice = price * quantity
     const totalAmount = items.reduce((sum: number, item: IOrderItem) => {
-      item.totalPrice = item.price * item.quantity;
+      if (!item.isIncludedInBundle) {
+        item.totalPrice = item.price * item.quantity;
+      }
+      // For bundled items, totalPrice should already be 0 from frontend
       return sum + item.totalPrice;
     }, 0);
 
@@ -299,8 +304,13 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
       });
 
       // Recalculate total
+      // Respect bundle pricing: if item is included in bundle, use totalPrice from frontend (0)
+      // Otherwise calculate totalPrice = price * quantity
       const totalAmount = items.reduce((sum: number, item: IOrderItem) => {
-        item.totalPrice = item.price * item.quantity;
+        if (!item.isIncludedInBundle) {
+          item.totalPrice = item.price * item.quantity;
+        }
+        // For bundled items, totalPrice should already be 0 from frontend
         return sum + item.totalPrice;
       }, 0);
 

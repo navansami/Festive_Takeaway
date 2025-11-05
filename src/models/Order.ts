@@ -10,6 +10,7 @@ export interface IOrderItem {
   totalPrice: number;
   status: ItemStatus;
   notes?: string;
+  isIncludedInBundle?: boolean;
 }
 
 export interface IPaymentRecord {
@@ -97,6 +98,10 @@ const orderItemSchema = new Schema<IOrderItem>(
     notes: {
       type: String,
       trim: true
+    },
+    isIncludedInBundle: {
+      type: Boolean,
+      default: false
     }
   },
   { _id: true }
