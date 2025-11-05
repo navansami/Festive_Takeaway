@@ -9,7 +9,7 @@ import { ChangeType, EntityType } from '../models/ChangeLog';
 
 export const createOrder = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { guestId, guestDetails, items, collectionDate, collectionTime, paymentMethod } = req.body;
+    const { guestId, guestDetails, items, collectionDate, collectionTime, paymentMethod, status, paymentStatus } = req.body;
 
     // Calculate total amount
     // Respect bundle pricing: if item is included in bundle, use totalPrice from frontend (0)
@@ -85,6 +85,16 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
       phone: finalGuestDetails.phone
     };
 
+    // Use provided status or default to PENDING
+    const initialStatus = status && Object.values(OrderStatus).includes(status)
+      ? status
+      : OrderStatus.PENDING;
+
+    // Use provided paymentStatus or default to PENDING
+    const initialPaymentStatus = paymentStatus && Object.values(PaymentStatus).includes(paymentStatus)
+      ? paymentStatus
+      : PaymentStatus.PENDING;
+
     const order = new Order({
       guest: guestRef,
       guestDetails: finalGuestDetails,
@@ -94,11 +104,13 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
       collectionDate,
       collectionTime,
       paymentMethod,
+      status: initialStatus,
+      paymentStatus: initialPaymentStatus,
       createdBy: new mongoose.Types.ObjectId(req.user?.userId),
       lastModifiedBy: new mongoose.Types.ObjectId(req.user?.userId),
       statusHistory: [
         {
-          status: OrderStatus.PENDING,
+          status: initialStatus,
           changedBy: new mongoose.Types.ObjectId(req.user?.userId),
           changedAt: new Date(),
           notes: 'Order created'
