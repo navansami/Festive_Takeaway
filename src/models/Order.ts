@@ -44,7 +44,11 @@ export interface IOrder extends Document {
     phone?: string;
   };
   items: IOrderItem[];
-  totalAmount: number;
+  subtotalAmount: number; // Amount before discount
+  discountPercentage?: number; // Discount percentage (e.g., 20 for 20%)
+  discountName?: string; // Name/reason for the discount
+  discountAmount: number; // Calculated discount amount
+  totalAmount: number; // Final amount after discount
   collectionDate: Date;
   collectionTime: string;
   status: OrderStatus;
@@ -223,6 +227,26 @@ const orderSchema = new Schema<IOrder>(
         },
         message: 'At least one item is required'
       }
+    },
+    subtotalAmount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    discountPercentage: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0
+    },
+    discountName: {
+      type: String,
+      trim: true
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0
     },
     totalAmount: {
       type: Number,

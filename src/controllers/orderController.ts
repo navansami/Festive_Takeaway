@@ -9,18 +9,23 @@ import { ChangeType, EntityType } from '../models/ChangeLog';
 
 export const createOrder = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { guestId, guestDetails, items, collectionDate, collectionTime, paymentMethod, status, paymentStatus } = req.body;
+    const { guestId, guestDetails, items, collectionDate, collectionTime, paymentMethod, status, paymentStatus, discountPercentage, discountName } = req.body;
 
-    // Calculate total amount
+    // Calculate subtotal amount (before discount)
     // Respect bundle pricing: if item is included in bundle, use totalPrice from frontend (0)
     // Otherwise calculate totalPrice = price * quantity
-    const totalAmount = items.reduce((sum: number, item: IOrderItem) => {
+    const subtotalAmount = items.reduce((sum: number, item: IOrderItem) => {
       if (!item.isIncludedInBundle) {
         item.totalPrice = item.price * item.quantity;
       }
       // For bundled items, totalPrice should already be 0 from frontend
       return sum + item.totalPrice;
     }, 0);
+
+    // Calculate discount
+    const finalDiscountPercentage = discountPercentage && discountPercentage > 0 ? discountPercentage : 0;
+    const discountAmount = Math.round((subtotalAmount * finalDiscountPercentage / 100) * 100) / 100;
+    const totalAmount = subtotalAmount - discountAmount;
 
     let finalGuestDetails = guestDetails;
     let guestRef = guestId;
@@ -100,6 +105,10 @@ export const createOrder = async (req: AuthRequest, res: Response): Promise<void
       guestDetails: finalGuestDetails,
       collectionPerson,
       items,
+      subtotalAmount,
+      discountPercentage: finalDiscountPercentage,
+      discountName: finalDiscountPercentage > 0 ? discountName : undefined,
+      discountAmount,
       totalAmount,
       collectionDate,
       collectionTime,
@@ -230,7 +239,9 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
       items,
       collectionDate,
       collectionTime,
-      paymentMethod
+      paymentMethod,
+      discountPercentage,
+      discountName
     } = req.body;
 
     // Handle guest profile update
@@ -315,10 +326,10 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
         newValue: items.length + ' items'
       });
 
-      // Recalculate total
+      // Recalculate subtotal
       // Respect bundle pricing: if item is included in bundle, use totalPrice from frontend (0)
       // Otherwise calculate totalPrice = price * quantity
-      const totalAmount = items.reduce((sum: number, item: IOrderItem) => {
+      const subtotalAmount = items.reduce((sum: number, item: IOrderItem) => {
         if (!item.isIncludedInBundle) {
           item.totalPrice = item.price * item.quantity;
         }
@@ -327,7 +338,44 @@ export const updateOrder = async (req: AuthRequest, res: Response): Promise<void
       }, 0);
 
       order.items = items;
-      order.totalAmount = totalAmount;
+      order.subtotalAmount = subtotalAmount;
+
+      // Recalculate discount and total
+      const finalDiscountPercentage = discountPercentage !== undefined ? discountPercentage : order.discountPercentage || 0;
+      const discountAmt = Math.round((subtotalAmount * finalDiscountPercentage / 100) * 100) / 100;
+      order.discountAmount = discountAmt;
+      order.totalAmount = subtotalAmount - discountAmt;
+    }
+
+    // Handle discount changes
+    if (discountPercentage !== undefined) {
+      const oldDiscountPercentage = order.discountPercentage || 0;
+      if (discountPercentage !== oldDiscountPercentage) {
+        changes.push({
+          field: 'discountPercentage',
+          oldValue: oldDiscountPercentage + '%',
+          newValue: discountPercentage + '%'
+        });
+
+        order.discountPercentage = discountPercentage;
+        order.discountName = discountPercentage > 0 ? discountName : undefined;
+
+        // Recalculate discount and total
+        const discountAmt = Math.round((order.subtotalAmount * discountPercentage / 100) * 100) / 100;
+        order.discountAmount = discountAmt;
+        order.totalAmount = order.subtotalAmount - discountAmt;
+      }
+    }
+
+    if (discountName !== undefined && order.discountPercentage && order.discountPercentage > 0) {
+      if (discountName !== order.discountName) {
+        changes.push({
+          field: 'discountName',
+          oldValue: order.discountName || 'None',
+          newValue: discountName
+        });
+        order.discountName = discountName;
+      }
     }
 
     if (collectionDate) {

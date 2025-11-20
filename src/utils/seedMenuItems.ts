@@ -16,7 +16,7 @@ export const menuItemsData = [
   },
   {
     name: 'Whole Roasted Turkey with Sides',
-    description: 'Includes 2 side dishes (For 4 people) and 1 small sauce. Served with traditional sage, apple stuffing and cranberry sauce',
+    description: 'Includes 2 side dishes (For 8 people) and 1 large sauce. Served with traditional sage, apple stuffing and cranberry sauce',
     category: MenuCategory.ROASTS,
     pricing: [
       { servingSize: '6kgs For 8 people', price: 650 },
@@ -24,17 +24,39 @@ export const menuItemsData = [
     ],
     allergens: ['D', 'G'],
     isAvailable: true,
+    bundleConfig: [
+      {
+        servingSize: '6kgs For 8 people',
+        maxPortions: 4,
+        maxSauces: 1,
+        allowMixing: false,
+        portionValues: [
+          { servingSize: 'For 4 people', portionValue: 1 },
+          { servingSize: 'For 8 people', portionValue: 2 }
+        ]
+      },
+      {
+        servingSize: '8kgs For 10 people',
+        maxPortions: 4,
+        maxSauces: 1,
+        allowMixing: false,
+        portionValues: [
+          { servingSize: 'For 4 people', portionValue: 1 },
+          { servingSize: 'For 8 people', portionValue: 2 }
+        ]
+      }
+    ],
     packageConstraints: [
       {
         servingSize: '6kgs For 8 people',
         allowedSides: {
           maxCount: 2,
-          servingSize: 'For 4 people',
+          servingSize: 'For 8 people',
           categories: ['potatoes', 'vegetables']
         },
         allowedSauces: {
           maxCount: 1,
-          servingSize: 'Small'
+          servingSize: 'Large'
         }
       },
       {
