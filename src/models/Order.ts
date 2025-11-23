@@ -230,8 +230,10 @@ const orderSchema = new Schema<IOrder>(
     },
     subtotalAmount: {
       type: Number,
-      required: true,
-      min: 0
+      min: 0,
+      default: function(this: IOrder) {
+        return this.totalAmount || 0;
+      }
     },
     discountPercentage: {
       type: Number,
@@ -324,6 +326,31 @@ orderSchema.pre('save', async function (next) {
     this.orderNumber = orderNumber;
   }
   next();
+});
+
+// Ensure old orders have discount fields populated
+orderSchema.post(['find', 'findOne'], function(docs: any) {
+  const populateDefaults = (doc: any) => {
+    if (doc && doc.totalAmount !== undefined) {
+      // If subtotalAmount is missing, set it to totalAmount (for old orders)
+      if (doc.subtotalAmount === undefined || doc.subtotalAmount === null) {
+        doc.subtotalAmount = doc.totalAmount;
+      }
+      // Ensure discountAmount and discountPercentage have defaults
+      if (doc.discountAmount === undefined || doc.discountAmount === null) {
+        doc.discountAmount = 0;
+      }
+      if (doc.discountPercentage === undefined || doc.discountPercentage === null) {
+        doc.discountPercentage = 0;
+      }
+    }
+  };
+
+  if (Array.isArray(docs)) {
+    docs.forEach(populateDefaults);
+  } else if (docs) {
+    populateDefaults(docs);
+  }
 });
 
 // Update guest statistics after order is saved
