@@ -566,6 +566,162 @@ export const addPayment = async (req: AuthRequest, res: Response): Promise<void>
   }
 };
 
+export const updatePayment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    const { amount, method, notes } = req.body;
+
+    if (!amount || amount <= 0) {
+      res.status(400).json({ message: 'Invalid payment amount' });
+      return;
+    }
+
+    if (!Object.values(PaymentMethod).includes(method)) {
+      res.status(400).json({ message: 'Invalid payment method' });
+      return;
+    }
+
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      res.status(404).json({ message: 'Order not found' });
+      return;
+    }
+
+    if (order.isDeleted) {
+      res.status(400).json({ message: 'Cannot update payment in a deleted order' });
+      return;
+    }
+
+    const paymentIndex = order.paymentRecords.findIndex(
+      (p: any) => p._id?.toString() === paymentId
+    );
+
+    if (paymentIndex === -1) {
+      res.status(404).json({ message: 'Payment record not found' });
+      return;
+    }
+
+    const oldAmount = order.paymentRecords[paymentIndex].amount;
+    const amountDifference = amount - oldAmount;
+
+    // Update payment record
+    order.paymentRecords[paymentIndex].amount = amount;
+    order.paymentRecords[paymentIndex].method = method;
+    order.paymentRecords[paymentIndex].notes = notes;
+
+    // Update total paid
+    order.totalPaid += amountDifference;
+
+    // Update payment status
+    if (order.totalPaid >= order.totalAmount) {
+      order.paymentStatus = PaymentStatus.PAID;
+    } else if (order.totalPaid > 0) {
+      order.paymentStatus = PaymentStatus.PARTIAL;
+    } else {
+      order.paymentStatus = PaymentStatus.PENDING;
+    }
+
+    order.lastModifiedBy = req.user?.userId as any;
+    await order.save();
+
+    // Log payment update
+    await ChangeLog.create({
+      entityType: EntityType.ORDER,
+      entityId: order._id,
+      changeType: ChangeType.PAYMENT_ADD,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
+      changes: [
+        {
+          field: 'payment',
+          oldValue: oldAmount,
+          newValue: amount
+        }
+      ],
+      description: `Payment updated from ${oldAmount} AED to ${amount} AED (${method})`
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment updated successfully',
+      order
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Error updating payment' });
+  }
+};
+
+export const deletePayment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      res.status(404).json({ message: 'Order not found' });
+      return;
+    }
+
+    if (order.isDeleted) {
+      res.status(400).json({ message: 'Cannot delete payment from a deleted order' });
+      return;
+    }
+
+    const paymentIndex = order.paymentRecords.findIndex(
+      (p: any) => p._id?.toString() === paymentId
+    );
+
+    if (paymentIndex === -1) {
+      res.status(404).json({ message: 'Payment record not found' });
+      return;
+    }
+
+    const deletedPayment = order.paymentRecords[paymentIndex];
+
+    // Remove payment record
+    order.paymentRecords.splice(paymentIndex, 1);
+
+    // Update total paid
+    order.totalPaid -= deletedPayment.amount;
+
+    // Update payment status
+    if (order.totalPaid >= order.totalAmount) {
+      order.paymentStatus = PaymentStatus.PAID;
+    } else if (order.totalPaid > 0) {
+      order.paymentStatus = PaymentStatus.PARTIAL;
+    } else {
+      order.paymentStatus = PaymentStatus.PENDING;
+    }
+
+    order.lastModifiedBy = req.user?.userId as any;
+    await order.save();
+
+    // Log payment deletion
+    await ChangeLog.create({
+      entityType: EntityType.ORDER,
+      entityId: order._id,
+      changeType: ChangeType.PAYMENT_ADD,
+      changedBy: new mongoose.Types.ObjectId(req.user?.userId),
+      changes: [
+        {
+          field: 'payment',
+          oldValue: order.totalPaid + deletedPayment.amount,
+          newValue: order.totalPaid
+        }
+      ],
+      description: `Payment of ${deletedPayment.amount} AED deleted (${deletedPayment.method})`
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment deleted successfully',
+      order
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Error deleting payment' });
+  }
+};
+
 export const updateOrderItem = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { itemId } = req.params;

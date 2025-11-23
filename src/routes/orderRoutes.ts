@@ -6,6 +6,8 @@ import {
   updateOrder,
   updateOrderStatus,
   addPayment,
+  updatePayment,
+  deletePayment,
   updateOrderItem,
   deleteOrder,
   getOrderChangeLogs,
@@ -53,6 +55,16 @@ router.patch(
 );
 
 // Admin only routes
+router.patch(
+  '/:id/payments/:paymentId',
+  authorize(UserRole.ADMIN),
+  updatePayment
+);
+router.delete(
+  '/:id/payments/:paymentId',
+  authorize(UserRole.ADMIN),
+  deletePayment
+);
 router.delete(
   '/:id',
   authorize(UserRole.ADMIN),
