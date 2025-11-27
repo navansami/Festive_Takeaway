@@ -271,6 +271,90 @@ export const getDateRangeAnalytics = async (req: AuthRequest, res: Response): Pr
   }
 };
 
+export const getMonthlyCategoryBreakdown = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // Get all orders (pending and confirmed only)
+    const allOrders = await Order.find({
+      isDeleted: false,
+      status: { $in: [OrderStatus.PENDING, OrderStatus.CONFIRMED] }
+    }).populate('items.menuItem');
+
+    // Item mapping - individual roast items + categories
+    const itemNames: { [key: string]: string } = {
+      turkey: 'Turkey',
+      ham: 'Ham',
+      wellington: 'Wellington',
+      smoked_salmon: 'Salmon',
+      potatoes: 'Starches',
+      vegetables: 'Vegetables'
+    };
+
+    // Initialize result structure
+    const result: any = {};
+    Object.keys(itemNames).forEach(key => {
+      result[key] = {
+        name: itemNames[key],
+        October: 0,
+        November: 0,
+        December: 0,
+        January: 0,
+        total: 0
+      };
+    });
+
+    // Month mapping
+    const monthMap: { [key: number]: string } = {
+      9: 'October',   // Month 9 (0-indexed)
+      10: 'November',
+      11: 'December',
+      0: 'January'
+    };
+
+    // Process orders
+    allOrders.forEach(order => {
+      const collectionDate = new Date(order.collectionDate);
+      const month = collectionDate.getMonth();
+      const monthName = monthMap[month];
+
+      // Only process if month is one we're tracking
+      if (monthName) {
+        order.items.forEach(item => {
+          if (item.menuItem && typeof item.menuItem === 'object' && 'name' in item.menuItem && 'category' in item.menuItem) {
+            const menuItemName = (item.menuItem as any).name?.toLowerCase() || '';
+            const category = (item.menuItem as any).category;
+            const quantity = item.quantity || 1;
+
+            // Check if it's a roast item (Turkey, Ham, Wellington)
+            if (category === 'roasts') {
+              if (menuItemName.includes('turkey')) {
+                result['turkey'][monthName] += quantity;
+                result['turkey'].total += quantity;
+              } else if (menuItemName.includes('ham')) {
+                result['ham'][monthName] += quantity;
+                result['ham'].total += quantity;
+              } else if (menuItemName.includes('wellington')) {
+                result['wellington'][monthName] += quantity;
+                result['wellington'].total += quantity;
+              }
+            } else if (result[category]) {
+              // For non-roast categories, use category as key
+              result[category][monthName] += quantity;
+              result[category].total += quantity;
+            }
+          }
+        });
+      }
+    });
+
+    res.json({
+      success: true,
+      monthlyCategoryBreakdown: result
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Error fetching monthly category breakdown' });
+  }
+};
+
 export const exportOrdersToExcel = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { startDate, endDate, date } = req.query;
