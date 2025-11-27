@@ -45,5 +45,6 @@ export enum MenuCategory {
   POTATOES = 'potatoes',
   VEGETABLES = 'vegetables',
   SAUCES = 'sauces',
-  DESSERTS = 'desserts'
+  DESSERTS = 'desserts',
+  OFF_THE_MENU = 'off_the_menu'
 }
