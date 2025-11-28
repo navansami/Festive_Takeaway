@@ -452,3 +452,262 @@ export const exportOrdersToExcel = async (req: AuthRequest, res: Response): Prom
     res.status(500).json({ message: error.message || 'Error exporting orders' });
   }
 };
+
+export const getItemsSoldByMonth = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      res.status(400).json({ message: 'startDate and endDate are required' });
+      return;
+    }
+
+    const start = new Date(startDate as string);
+    const end = new Date(endDate as string);
+    end.setHours(23, 59, 59, 999);
+
+    // Fetch all orders in date range with PENDING or CONFIRMED status
+    const orders = await Order.find({
+      collectionDate: { $gte: start, $lte: end },
+      status: { $in: [OrderStatus.PENDING, OrderStatus.CONFIRMED] },
+      isDeleted: false
+    }).populate('items.menuItem');
+
+    // Build items summary grouped by name + servingSize
+    const itemsMap: Map<string, any> = new Map();
+    const monthsSet = new Set<string>();
+
+    orders.forEach(order => {
+      const orderDate = new Date(order.collectionDate);
+      const monthKey = orderDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      monthsSet.add(monthKey);
+
+      order.items.forEach(item => {
+        const key = `${item.name}|${item.servingSize}`;
+
+        if (!itemsMap.has(key)) {
+          itemsMap.set(key, {
+            name: item.name,
+            servingSize: item.servingSize,
+            monthlyBreakdown: {}
+          });
+        }
+
+        const itemData = itemsMap.get(key);
+        if (!itemData.monthlyBreakdown[monthKey]) {
+          itemData.monthlyBreakdown[monthKey] = 0;
+        }
+        itemData.monthlyBreakdown[monthKey] += item.quantity;
+      });
+    });
+
+    // Sort months chronologically
+    const sortedMonths = Array.from(monthsSet).sort((a, b) => {
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    // Convert to items array and calculate totals
+    const items = Array.from(itemsMap.values()).map((item: any) => {
+      let total = 0;
+      const itemData: any = {
+        name: item.name,
+        servingSize: item.servingSize
+      };
+
+      sortedMonths.forEach(month => {
+        const quantity = item.monthlyBreakdown[month] || 0;
+        itemData[month] = quantity;
+        total += quantity;
+      });
+
+      itemData.total = total;
+      return itemData;
+    });
+
+    // Sort by total quantity (descending)
+    items.sort((a: any, b: any) => b.total - a.total);
+
+    // Calculate grand total
+    const grandTotal = items.reduce((sum: number, item: any) => sum + item.total, 0);
+
+    res.json({
+      items,
+      grandTotal,
+      monthsIncluded: sortedMonths
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Error fetching items sold by month' });
+  }
+};
+
+export const exportItemsSoldReport = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      res.status(400).json({ message: 'startDate and endDate are required' });
+      return;
+    }
+
+    const start = new Date(startDate as string);
+    const end = new Date(endDate as string);
+    end.setHours(23, 59, 59, 999);
+
+    // Fetch all orders in date range with PENDING or CONFIRMED status
+    const orders = await Order.find({
+      collectionDate: { $gte: start, $lte: end },
+      status: { $in: [OrderStatus.PENDING, OrderStatus.CONFIRMED] },
+      isDeleted: false
+    }).populate('items.menuItem');
+
+    // Build items summary grouped by name + servingSize
+    const itemsMap: Map<string, any> = new Map();
+    const monthsSet = new Set<string>();
+
+    orders.forEach(order => {
+      const orderDate = new Date(order.collectionDate);
+      const monthKey = orderDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      monthsSet.add(monthKey);
+
+      order.items.forEach(item => {
+        const key = `${item.name}|${item.servingSize}`;
+
+        if (!itemsMap.has(key)) {
+          itemsMap.set(key, {
+            name: item.name,
+            servingSize: item.servingSize,
+            monthlyBreakdown: {}
+          });
+        }
+
+        const itemData = itemsMap.get(key);
+        if (!itemData.monthlyBreakdown[monthKey]) {
+          itemData.monthlyBreakdown[monthKey] = 0;
+        }
+        itemData.monthlyBreakdown[monthKey] += item.quantity;
+      });
+    });
+
+    // Sort months chronologically
+    const sortedMonths = Array.from(monthsSet).sort((a, b) => {
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    // Convert to items array and calculate totals
+    const items = Array.from(itemsMap.values()).map((item: any) => {
+      let total = 0;
+      const itemData: any = {
+        name: item.name,
+        servingSize: item.servingSize
+      };
+
+      sortedMonths.forEach(month => {
+        const quantity = item.monthlyBreakdown[month] || 0;
+        itemData[month] = quantity;
+        total += quantity;
+      });
+
+      itemData.total = total;
+      return itemData;
+    });
+
+    // Sort by total quantity (descending)
+    items.sort((a: any, b: any) => b.total - a.total);
+
+    // Calculate grand total
+    const grandTotal = items.reduce((sum: number, item: any) => sum + item.total, 0);
+
+    // Create Excel workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Items Sold by Month');
+
+    // Define columns
+    const columns: any[] = [
+      { header: 'Item Name', key: 'name', width: 25 },
+      { header: 'Serving Size', key: 'servingSize', width: 15 }
+    ];
+
+    sortedMonths.forEach(month => {
+      columns.push({ header: month, key: month, width: 12 });
+    });
+
+    columns.push({ header: 'Total', key: 'total', width: 12 });
+
+    worksheet.columns = columns;
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFD3D3D3' }
+    };
+    worksheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+    // Add data rows
+    items.forEach((item: any, index: number) => {
+      const row = worksheet.addRow(item);
+
+      // Alternate row colors
+      if (index % 2 === 0) {
+        row.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF0F0F0' }
+        };
+      }
+
+      // Center align numeric columns
+      for (let i = 2; i < columns.length; i++) {
+        row.getCell(i + 1).alignment = { horizontal: 'center' };
+      }
+    });
+
+    // Add grand total row
+    const grandTotalRow = worksheet.addRow({
+      name: 'GRAND TOTAL',
+      servingSize: ''
+    });
+
+    // Add grand total for each month
+    sortedMonths.forEach(month => {
+      const monthTotal = items.reduce((sum: number, item: any) => sum + (item[month] || 0), 0);
+      grandTotalRow.getCell(columns.findIndex(c => c.key === month) + 1).value = monthTotal;
+    });
+
+    grandTotalRow.getCell(columns.findIndex(c => c.key === 'total') + 1).value = grandTotal;
+
+    // Style grand total row
+    grandTotalRow.font = { bold: true };
+    grandTotalRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFCCCCCC' }
+    };
+
+    // Center align grand total row
+    for (let i = 2; i < columns.length; i++) {
+      grandTotalRow.getCell(i + 1).alignment = { horizontal: 'center' };
+    }
+
+    // Set response headers
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=items-sold-report-${Date.now()}.xlsx`
+    );
+
+    // Write to response
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Error exporting items report' });
+  }
+};

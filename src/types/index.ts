@@ -48,3 +48,16 @@ export enum MenuCategory {
   DESSERTS = 'desserts',
   OFF_THE_MENU = 'off_the_menu'
 }
+
+export interface ItemMonthlyBreakdown {
+  name: string;
+  servingSize: string;
+  [month: string]: string | number;
+  total: number;
+}
+
+export interface ItemsSoldByMonthResponse {
+  items: ItemMonthlyBreakdown[];
+  grandTotal: number;
+  monthsIncluded: string[];
+}

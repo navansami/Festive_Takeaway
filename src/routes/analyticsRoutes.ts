@@ -4,7 +4,9 @@ import {
   getDailyAnalytics,
   getDateRangeAnalytics,
   getMonthlyCategoryBreakdown,
-  exportOrdersToExcel
+  exportOrdersToExcel,
+  getItemsSoldByMonth,
+  exportItemsSoldReport
 } from '../controllers/analyticsController';
 import { authenticate } from '../middleware/auth';
 
@@ -18,5 +20,7 @@ router.get('/daily', getDailyAnalytics);
 router.get('/range', getDateRangeAnalytics);
 router.get('/monthly-categories', getMonthlyCategoryBreakdown);
 router.get('/export', exportOrdersToExcel);
+router.get('/items-sold-by-month', getItemsSoldByMonth);
+router.get('/export-items-report', exportItemsSoldReport);
 
 export default router;
